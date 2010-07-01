@@ -7,7 +7,7 @@
 
 __author__ = 'Ange Albertini'
 __contact__ = 'ange@corkami.com' 
-__revision__ = "$LastChangedRevision: 1 $"
+__revision__ = "$Revision$"
 __version__ = '0.1 r%d' % int(__revision__[21:-2])
 
 import struct
