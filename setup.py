@@ -11,7 +11,7 @@ setup(
     author=pyudd.__author__,
     author_email=pyudd.__contact__,
     url='http://code.google.com/p/pyudd',
-    py_modules=['pyudd'],
+    py_modules=['pyudd', 'uddtool'],
     classifiers=[
         "Programming Language :: Python",
         "Development Status :: 4 - Beta",

@@ -24,7 +24,7 @@ F_NAME = 9
 
 chunk_types = [
     ("HEADER",      "Mod\x00", F_STRING),
-    ("END",         "\nEnd", F_EMPTY),
+    ("FOOTER",      "\nEnd", F_EMPTY),
     ("FILENAME",    "\nFil", F_STRING),
     ("VERSION",     "\nVer", F_VERSION),
     ("SIZE",        "\nSiz", F_DWORD),
@@ -39,13 +39,13 @@ chunk_types = [
 
     ("CMD_PLUGINS", "\nUs0", F_DDSTRING),
     ("USERLABEL",   "\nUs1", F_BIN),
-    ("LABELH",      "\nUs1", F_DDSTRING),
+    ("U_LABEL",     "\nUs1", F_DDSTRING),
     ("US2",         "\nUs2", F_BIN),
     ("US3",         "\nUs3", F_BIN),
-    ("LABEL",       "\nUs4", F_DDSTRING),
+    ("A_LABEL",     "\nUs4", F_DDSTRING),
     ("_CONST",      "\nUs5", F_BIN),
-    ("USERCOMMENT", "\nUs6", F_DDSTRING),
-    ("_AUTOCOMMENT","\nUs7", F_BIN),
+    ("U_COMMENT",   "\nUs6", F_DDSTRING),
+    ("A_COMMENT",   "\nUs7", F_BIN),
     ("BPCOND",      "\nUs8", F_DDSTRING),
     ("KNOWN_ARG",   "\nUs9", F_DDSTRING),
     ("WATCH",       "\nUsA", F_DDSTRING),
@@ -62,10 +62,11 @@ chunk_types = [
     ("MRU_LABEL",  "\nUsq", F_DDSTRING), #?
     ("MRU_COMM",   "\nUsv", F_DDSTRING), #?
     ("MRU_COND",   "\nUsx", F_DDSTRING), #?
+    ("MRU_CMDLINE","\nCml", F_STRING), #?
 
 
-    ("EXPR",        "\nUs;", F_DDSTRING), # lgging breakpoint expression
-    ("ANALY_COMM",  "\nUs:", F_DDSTRING), # 
+    ("EXPR",        "\nUs;", F_DDSTRING), # logging breakpoint expression
+    ("ANALY_COMM",  "\nUs:", F_DDSTRING), #
     ("US?",         "\nUs?", F_DDSTRING), #?
     ("US>",         "\nUs>", F_BIN), #?
     ("TRACCOND",    "\nUsM", F_DDSTRING), # tracing condition
@@ -76,7 +77,6 @@ chunk_types = [
     ("CFA",         "\nCfa", F_DD2), #?
     ("CFM",         "\nCfm", F_DD2STRING), #?
     ("CFI",         "\nCfi", F_DD2), #?
-    ("CMDLINE",     "\nCml", F_STRING), #?
     ("JDT",         "\nJdt", F_BIN), #?
     ("SWI",         "\nSwi", F_BIN), #?
     ("PRC",         "\nPrc", F_BIN), #?
@@ -107,8 +107,17 @@ CHUNK_FORMATS = dict(
     [(e[0], e[2]) for e in chunk_types]
     )
 
-RVAINFO_TYPES = [CHUNK_TYPES[e] for e in "LABEL", "USERCOMMENT"]
+RVAINFO_TYPES = [CHUNK_TYPES[e] for e in "U_LABEL", "U_COMMENT"]
 
+def binstr(s):
+    """binary rendering"""
+    return " ".join(["%02X" % ord(c) for c in s])
+
+def elbinstr(s):
+    """ellipsed binary string display"""
+    if len(s) < 10:
+        return binstr(s)
+    return "%s ... %s" % (binstr(s[:10]), binstr(s[-10:]))
 
 def ReadNextChunk(f):
     ct = f.read(4)
@@ -133,14 +142,11 @@ def MakeChunk(ct, cd):
 
     return [ct, cd]
 
+# TODO: merge those 3 into a real MakeChunk or something - support format 2
+#
 
 def MakeRVAInfo(RVA, comment):
     return "%s%s\x00" % (struct.pack("<I", RVA), comment)
-
-
-def ReadRVAInfo(data):
-    RVA, text = struct.unpack("<I", data[:4])[0], data[4:].strip("\x00")
-    return RVA, text
 
 
 def MakeCommentChunk(RVA, comment):
@@ -150,14 +156,8 @@ def MakeCommentChunk(RVA, comment):
 def MakeLabelChunk(RVA, comment):
     return MakeChunk(CHUNK_TYPES["LABEL"], MakeRVAInfo(RVA, comment))
 
-
-def MakeDDInfo(dd):
-    return struct.pack("<I", dd)
-
-
-def ReadDDInfo(data):
-    return struct.unpack("<I", data)[0]
-
+# TODO: rename ReadInfo
+#
 def ReadInfo(chunk):
     ct, cd = chunk
     cf = CHUNK_FORMATS[CHUNK_TYPES[ct]]
@@ -183,6 +183,8 @@ def ReadInfo(chunk):
     else:
         return cd
 
+# TODO: rename Render
+#
 def RenderInfo(chunk):
     ct, cd = chunk
     info = ReadInfo(chunk)
@@ -204,7 +206,7 @@ def RenderInfo(chunk):
     elif cf == F_DD2:
         return "%08X %08X" % info
     elif cf == F_BIN:
-        return " ".join(["%02X" % ord(c) for c in info[:40]])
+        return elbinstr(info)
     return cd
 
 class Udd(object):
@@ -235,7 +237,7 @@ class Udd(object):
                     raise Exception("Unknown chunk name: %s" % ct)
 
                 self.__chunks.append([ct, cd])
-                if (ct, cd) == (CHUNK_TYPES["END"] , ""):
+                if (ct, cd) == (CHUNK_TYPES["FOOTER"] , ""):
                     break
 
         finally:
@@ -260,12 +262,16 @@ class Udd(object):
         return self.__chunks[pos]
 
 
-    def AppendChunk(self, chunk):
+    def AddChunk(self, chunk):
         """appending the chunk before the final End chunk"""
         if not self.Find(chunk):
             self.__chunks.insert(-1, chunk)
         return
 
+    def AppendChunk(self, chunk):
+        """blindly the chunk"""
+        self.__chunks.append(chunk)
+        return
 
     def GetFormat(self):
         return self.__format
@@ -315,21 +321,7 @@ class Udd(object):
 
 
     def Render(self):
-        import pprint
         for i in self.__chunks:
             print "%s:" % CHUNK_TYPES[i[0]],
-            print RenderInfo(i) # pprint.pprint(i[1])
+            print RenderInfo(i)
         return
-
-
-if __name__ == "__main__":
-    import glob
-    import sys
-
-    arg = "*.udd" if len(sys.argv) < 2 else sys.argv[1]
-
-    for f in glob.glob(arg):
-        print f
-        u = Udd(filename=f)
-        u.Render()
-        print
