@@ -6,69 +6,106 @@
 # Public domain
 
 __author__ = 'Ange Albertini'
-__contact__ = 'ange@corkami.com' 
+__contact__ = 'ange@corkami.com'
 __revision__ = "$Revision$"
-__version__ = '0.1 r%d' % int(__revision__[21:-2])
+__version__ = '0.1 r%d' % int(__revision__[11:-2])
 
 import struct
 
+F_STRING = 0
+F_DDSTRING = 1
+F_EMPTY = 2
+F_VERSION = 3
+F_DWORD = 4
+F_DD2 = 5
+F_DD2STRING = 6
+F_BIN = 8
+F_NAME = 9
+
 chunk_types = [
-    ("HEADER",      "Mod\x00"),
-    ("END",         "\nEnd"),
-    ("FILENAME",    "\nFil"),
-    ("VERSION",     "\nVer"),
-    ("SIZE",        "\nSiz"),
-    ("TIMESTAMP",   "\nTst"),
-    ("CRC",         "\nCcr"),
-    ("PATCH",       "\nPat"),
-    ("BP",          "\nBpc"),
-    ("HWBP",        "\nHbr"),
-    ("SAVE",        "\nSva"),
+    ("HEADER",      "Mod\x00", F_STRING),
+    ("END",         "\nEnd", F_EMPTY),
+    ("FILENAME",    "\nFil", F_STRING),
+    ("VERSION",     "\nVer", F_VERSION),
+    ("SIZE",        "\nSiz", F_DWORD),
+    ("TIMESTAMP",   "\nTst", F_DD2),
+    ("CRC",         "\nCcr", F_DWORD),
+    ("PATCH",       "\nPat", F_BIN),
+    ("=BPc",        "\nBpc", F_BIN),
+    ("=BPt",        "\nBpt", F_BIN),
+    ("=HWBP",       "\nHbr", F_BIN),
+    ("SAVE",        "\nSva", F_BIN), # sometimes 4, sometimes 5 ?
+    ("ANALYSEHINT", "\nAht", F_BIN),
+
+    ("CMD_PLUGINS", "\nUs0", F_DDSTRING),
+    ("USERLABEL",   "\nUs1", F_BIN),
+    ("LABELH",      "\nUs1", F_DDSTRING),
+    ("US2",         "\nUs2", F_BIN),
+    ("US3",         "\nUs3", F_BIN),
+    ("LABEL",       "\nUs4", F_DDSTRING),
+    ("_CONST",      "\nUs5", F_BIN),
+    ("USERCOMMENT", "\nUs6", F_DDSTRING),
+    ("_AUTOCOMMENT","\nUs7", F_BIN),
+    ("BPCOND",      "\nUs8", F_DDSTRING),
+    ("KNOWN_ARG",   "\nUs9", F_DDSTRING),
+    ("WATCH",       "\nUsA", F_DDSTRING),
+    ("FIND?",       "\nUsC", F_BIN),
+    ("SOURCE?",     "\nUsI", F_BIN),
 
 
-    ("LABEL",       "\nUs1"),
-    ("EXPORT",      "\nUs2"),
-    ("IMPORT",      "\nUs3"),
-    ("LIBRARY",     "\nUs4"),
-    ("USERCOMMENT", "\nUs6"),
-    ("ARG",         "\nUs9"),
-    ("INSPECT",     "\nUs@"),
-    ("WATCH",       "\nUsA"),
-    ("ASM",         "\nUsB"),
-    ("FIND",        "\nUsC"),
+    ("MRU_INSPECT","\nUs@", F_DDSTRING),
+    ("MRU_ASM",    "\nUsB", F_DDSTRING),
+    ("MRU_GOTO",   "\nUsK", F_DDSTRING), #?
+    ("MRU_EXPL",   "\nUs|", F_DDSTRING), # logging breakpoint explanation
+    ("MRU_EXPR",   "\nUs{", F_DDSTRING), # logging breakpoint expression
+    ("MRU_WATCH",  "\nUsH", F_DDSTRING),
+    ("MRU_LABEL",  "\nUsq", F_DDSTRING), #?
+    ("MRU_COMM",   "\nUsv", F_DDSTRING), #?
+    ("MRU_COND",   "\nUsx", F_DDSTRING), #?
 
 
-    ("USh",         "\nUsH"), #?
-    ("US;",         "\nUs;"), #?
-    ("USq",         "\nUsq"), #?
-    ("USv",         "\nUsv"), #?
-    ("US=",         "\nUs="), #?
-    ("ANC",         "\nAnc"), #?
+    ("EXPR",        "\nUs;", F_DDSTRING), # lgging breakpoint expression
+    ("ANALY_COMM",  "\nUs:", F_DDSTRING), # 
+    ("US?",         "\nUs?", F_DDSTRING), #?
+    ("US>",         "\nUs>", F_BIN), #?
+    ("TRACCOND",    "\nUsM", F_DDSTRING), # tracing condition
+    ("LOGEXP",      "\nUs<", F_DDSTRING), # logging breakpoint explanation
+    ("ASSARG",      "\nUs=", F_DDSTRING), # Assumed arguments
+    ("ANC",         "\nAnc", F_BIN), #?
 
-    ("CFA",         "\nCfa"), #?
-    ("CFM",         "\nCfm"), #?
-    ("CFI",         "\nCfi"), #?
-    ("CML",         "\nCml"), #?
-    ("JDT",         "\nJdt"), #?
-    ("SWI",         "\nSwi"), #?
-    ("PRC",         "\nPrc"), #?
+    ("CFA",         "\nCfa", F_DD2), #?
+    ("CFM",         "\nCfm", F_DD2STRING), #?
+    ("CFI",         "\nCfi", F_DD2), #?
+    ("CMDLINE",     "\nCml", F_STRING), #?
+    ("JDT",         "\nJdt", F_BIN), #?
+    ("SWI",         "\nSwi", F_BIN), #?
+    ("PRC",         "\nPrc", F_BIN), #?
 
-    #OllyDbg 2
-    ("FCR",         "\nFcr"), #?
-    ("NAME",        "\nNam"), #?
-    ("DATA",        "\nDat"), #?
-    ("CBR",         "\nCbr"), #?
-    ("LBR",         "\nLbr"), #?
-    ("ANA",         "\nAna"), #?
-    ("CAS",         "\nCas"), #?
-    ("MBA",         "\nMba"), #?
-    ("PRD",         "\nPrd"), #?
-    ("SAV",         "\nSav"), #?
-    ("RTC",         "\nRtc"), #?
-    ("RTP",         "\nRtp"), #?
+     #OllyDbg 2
+    ("FCR",         "\nFcr", F_BIN), #?
+    ("NAME",        "\nNam", F_NAME), #?
+    ("DATA",        "\nDat", F_BIN), #?
+    ("CBR",         "\nCbr", F_BIN), #?
+    ("LBR",         "\nLbr", F_BIN), #?
+    ("ANA",         "\nAna", F_BIN), #?
+    ("CAS",         "\nCas", F_BIN), #?
+    ("MBA",         "\nMba", F_BIN), #?
+    ("PRD",         "\nPrd", F_BIN), #?
+    ("SAV",         "\nSav", F_BIN), #?
+    ("RTC",         "\nRtc", F_BIN), #?
+    ("RTP",         "\nRtp", F_BIN), #?
+    ("LSA",         "\nLsa", F_BIN), #?
     ]
 
-CHUNK_TYPES = dict([(e[1], e[0]) for e in chunk_types] + chunk_types)
+CHUNK_TYPES = dict(
+    [(e[1], e[0]) for e in chunk_types] +
+    [(e[0], e[1]) for e in chunk_types]
+    )
+
+CHUNK_FORMATS = dict(
+    [(e[2], e[0]) for e in chunk_types] +
+    [(e[0], e[2]) for e in chunk_types]
+    )
 
 RVAINFO_TYPES = [CHUNK_TYPES[e] for e in "LABEL", "USERCOMMENT"]
 
@@ -121,6 +158,54 @@ def MakeDDInfo(dd):
 def ReadDDInfo(data):
     return struct.unpack("<I", data)[0]
 
+def ReadInfo(chunk):
+    ct, cd = chunk
+    cf = CHUNK_FORMATS[CHUNK_TYPES[ct]]
+    if cf == F_STRING:
+        return cd.rstrip("\x00")
+    elif cf == F_DDSTRING:
+        return struct.unpack("<I", cd[:4])[0], cd[4:].rstrip("\x00")
+    elif cf == F_NAME:
+        return struct.unpack("<I", cd[:4])[0], cd[4], cd[5:].rstrip("\x00")
+    elif cf == F_DD2STRING:
+        return list(struct.unpack("<2I", cd[:8])) + [cd[8:].rstrip("\x00")]
+    elif cf == F_EMPTY:
+        return ""
+    elif cf == F_VERSION:
+        return struct.unpack("<4I", cd)
+    elif cf == F_DWORD:
+        print len(cd),
+        return struct.unpack("<I", cd)[0]
+    elif cf == F_DD2:
+        return struct.unpack("<2I", cd)
+    elif cf == F_BIN:
+        return cd
+    else:
+        return cd
+
+def RenderInfo(chunk):
+    ct, cd = chunk
+    info = ReadInfo(chunk)
+    cf = CHUNK_FORMATS[CHUNK_TYPES[ct]]
+    if cf == F_STRING:
+        return info.rstrip("\x00")
+    elif cf == F_DDSTRING:
+        return "%08X: %s" % info
+    elif cf == F_NAME:
+        return "%08X: %s %s" % info
+    elif cf == F_DD2STRING:
+        return "%08X %08X %s" % (tuple(info))
+    elif cf == F_EMPTY:
+        return ""
+    elif cf == F_VERSION:
+        return "%i.%i.%i.%i" % info
+    elif cf == F_DWORD:
+        return "%08X" % info
+    elif cf == F_DD2:
+        return "%08X %08X" % info
+    elif cf == F_BIN:
+        return " ".join(["%02X" % ord(c) for c in info[:40]])
+    return cd
 
 class Udd(object):
 
@@ -176,9 +261,14 @@ class Udd(object):
 
 
     def AppendChunk(self, chunk):
+        """appending the chunk before the final End chunk"""
         if not self.Find(chunk):
             self.__chunks.insert(-1, chunk)
         return
+
+
+    def GetFormat(self):
+        return self.__format
 
 
     def FindByType(self, type):
@@ -222,3 +312,24 @@ class Udd(object):
                 result += type, data
 
         return result
+
+
+    def Render(self):
+        import pprint
+        for i in self.__chunks:
+            print "%s:" % CHUNK_TYPES[i[0]],
+            print RenderInfo(i) # pprint.pprint(i[1])
+        return
+
+
+if __name__ == "__main__":
+    import glob
+    import sys
+
+    arg = "*.udd" if len(sys.argv) < 2 else sys.argv[1]
+
+    for f in glob.glob(arg):
+        print f
+        u = Udd(filename=f)
+        u.Render()
+        print
