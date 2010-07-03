@@ -1,3 +1,10 @@
+#!/usr/bin/env python
+
+# small pyudd based tool.
+#
+# Ange Albertini 2010
+# Public domain
+
 import glob
 import sys
 
