@@ -150,11 +150,11 @@ def MakeRVAInfo(RVA, comment):
 
 
 def MakeCommentChunk(RVA, comment):
-    return MakeChunk(CHUNK_TYPES["USERCOMMENT"], MakeRVAInfo(RVA, comment))
+    return MakeChunk(CHUNK_TYPES["U_COMMENT"], MakeRVAInfo(RVA, comment))
 
 
 def MakeLabelChunk(RVA, comment):
-    return MakeChunk(CHUNK_TYPES["LABEL"], MakeRVAInfo(RVA, comment))
+    return MakeChunk(CHUNK_TYPES["U_LABEL"], MakeRVAInfo(RVA, comment))
 
 # TODO: rename ReadInfo
 #

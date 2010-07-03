@@ -115,9 +115,9 @@ elif action == "import":
         # save new information
         #
         if label != "":
-            u.AppendChunk(pyudd.MakeLabelChunk(RVA, label))
+            u.AddChunk(pyudd.MakeLabelChunk(RVA, label))
         if comment != "":
-            u.AppendChunk(pyudd.MakeCommentChunk(RVA, comment))
+            u.AddChunk(pyudd.MakeCommentChunk(RVA, comment))
 
     f.close()
     u.Save(uddfile)
