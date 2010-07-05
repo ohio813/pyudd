@@ -36,8 +36,9 @@ actions = [
     )
     ]
 
-def rtfm():
 
+def rtfm():
+    """display usage and exit"""
     usage = ["%s: <action> <arguments>\n" % sys.argv[0]]
     usage += ["actions: "+ ",".join([e[0] for e in actions]), ""]
     for i in actions:
@@ -65,13 +66,17 @@ if action == "create":
 
     uddfile = sys.argv[2]
 
+    # TODO: read format via command line
+
+    _format = 11
+
     u = pyudd.Udd()
-    u.AppendChunk([pyudd.CHUNK_TYPES["HEADER"], "Module info file v1.1\x00"])
+    u.AppendChunk([pyudd.CHUNK_TYPES[_format]["HEADER"], pyudd.UDD_FORMATS[_format]])
 
     if arglen > 3:
-        u.AppendChunk([pyudd.CHUNK_TYPES["FILENAME"], sys.argv[3]])
+        u.AppendChunk([pyudd.CHUNK_TYPES[_format]["FILENAME"], sys.argv[3]])
 
-    u.AppendChunk([pyudd.CHUNK_TYPES["FOOTER"], ""])
+    u.AppendChunk([pyudd.CHUNK_TYPES[_format]["FOOTER"], ""])
     u.Save(uddfile)
 
     sys.exit()
@@ -85,7 +90,7 @@ elif action == "list":
     for f in glob.glob(arg):
         print f
         u = pyudd.Udd(filename=f)
-        u.Render()
+        print u
         print
 
     sys.exit()
@@ -100,6 +105,7 @@ elif action == "import":
     #
     f = open(csvfile, "rt")
     u = pyudd.Udd(uddfile)
+    _format = u.GetFormat()
     for l in f:
 
         # skip the header
@@ -115,9 +121,9 @@ elif action == "import":
         # save new information
         #
         if label != "":
-            u.AddChunk(pyudd.MakeLabelChunk(RVA, label))
+            u.AddChunk(pyudd.MakeLabelChunk({"dword":RVA, "text":label}, _format))
         if comment != "":
-            u.AddChunk(pyudd.MakeCommentChunk(RVA, comment))
+            u.AddChunk(pyudd.MakeCommentChunk({"dword":RVA, "text":comment}, _format))
 
     f.close()
     u.Save(uddfile)
@@ -139,13 +145,17 @@ elif action == "export":
 
     # collecting the information
     #
+
+    # TODO: multi format
+    _format = 11
+
     d = {}
     for i in labcoms:
         ct, cd = u.GetChunk(i)
-        RVA, text = pyudd.ReadInfo([ct, cd])
+        RVA, text = pyudd.ExpandChunk([ct, cd], _format)
         if RVA not in d:
             d[RVA] = ["",""]
-        if ct == pyudd.CHUNK_TYPES["U_LABEL"]:
+        if ct == pyudd.CHUNK_TYPES[_format]["U_LABEL"]:
             d[RVA][0] = text
         else:
             d[RVA][1] = text

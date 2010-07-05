@@ -23,9 +23,20 @@ F_BIN = 8
 F_NAME = 9
 
 # TODO: support both formats
+udd_formats = [
+    (11, "Module info file v1.1\x00"),
+    (20, "Module info file v2.0\x00"),
+    ]
 
-chunk_types1 = [
-    ("HEADER",      "Mod\x00", F_STRING),
+UDD_FORMATS = dict(
+    [(e[1], e[0]) for e in udd_formats] +
+    udd_formats)
+
+HDR_STRING = "Mod\x00"
+
+#OllyDbg 1.1
+chunk_types11 = [
+    ("HEADER",      HDR_STRING, F_STRING),
     ("FOOTER",      "\nEnd", F_EMPTY),
     ("FILENAME",    "\nFil", F_STRING),
     ("VERSION",     "\nVer", F_VERSION),
@@ -79,10 +90,16 @@ chunk_types1 = [
     ("CFA",         "\nCfa", F_DD2), #?
     ("CFM",         "\nCfm", F_DD2STRING), #?
     ("CFI",         "\nCfi", F_DD2), #?
+
+    ("JDT",         "\nJdt", F_BIN), #?
+    ("PRC",         "\nPrc", F_BIN), #?
+    ("SWI",         "\nSwi", F_BIN), #?
+
     ]
 
-chunk_types = [
-    ("HEADER",      "Mod\x00", F_STRING),
+#OllyDbg 2
+chunk_types20 = [
+    ("HEADER",      HDR_STRING, F_STRING),
     ("FOOTER",      "\nEnd", F_EMPTY),
     ("FILENAME",    "\nFil", F_STRING),
 
@@ -90,7 +107,6 @@ chunk_types = [
     ("PRC",         "\nPrc", F_BIN), #?
     ("SWI",         "\nSwi", F_BIN), #?
 
-     #OllyDbg 2
     ("FCR",         "\nFcr", F_BIN), #?
     ("NAME",        "\nNam", F_NAME), #?
     ("DATA",        "\nDat", F_NAME), #?
@@ -109,17 +125,31 @@ chunk_types = [
     ("BPH",         "\nBph", F_BIN), #?
     ]
 
-CHUNK_TYPES = dict(
-    [(e[1], e[0]) for e in chunk_types] +
-    [(e[0], e[1]) for e in chunk_types]
+CHUNK_TYPES11 = dict(
+    [(e[1], e[0]) for e in chunk_types11] +
+    [(e[0], e[1]) for e in chunk_types11]
     )
 
+CHUNK_TYPES20 = dict(
+    [(e[1], e[0]) for e in chunk_types20] +
+    [(e[0], e[1]) for e in chunk_types20]
+    )
+
+CHUNK_TYPES = {
+    11: CHUNK_TYPES11,
+    20: CHUNK_TYPES20
+    }
+
+# no overlapping of formats yet so they're still merged
 CHUNK_FORMATS = dict(
-    [(e[2], e[0]) for e in chunk_types] +
-    [(e[0], e[2]) for e in chunk_types]
+    [(e[2], e[0]) for e in chunk_types11] +
+    [(e[0], e[2]) for e in chunk_types11] +
+
+    [(e[2], e[0]) for e in chunk_types20] +
+    [(e[0], e[2]) for e in chunk_types20]
     )
 
-#RVAINFO_TYPES = [CHUNK_TYPES[e] for e in "U_LABEL", "U_COMMENT"]
+RVAINFO_TYPES = [CHUNK_TYPES[11][e] for e in "U_LABEL", "U_COMMENT"]
 
 def binstr(s):
     """binary rendering"""
@@ -130,6 +160,7 @@ def elbinstr(s):
     if len(s) < 10:
         return binstr(s)
     return "%s ... %s" % (binstr(s[:10]), binstr(s[-10:]))
+
 
 def ReadNextChunk(f):
     ct = f.read(4)
@@ -154,28 +185,44 @@ def MakeChunk(ct, cd):
 
     return [ct, cd]
 
+
+def BuildData(_format, info):
+    if _format == F_DDSTRING:
+        return "%s%s\x00" % (struct.pack("<I", info["dword"]), info["text"])
+    else:
+        raise Exception("format not supported for building")
+
 # TODO: merge those 3 into a real MakeChunk or something - support format 2
 #
 
-def MakeRVAInfo(RVA, comment):
-    return "%s%s\x00" % (struct.pack("<I", RVA), comment)
+def MakeCommentChunk(info, _format):
+    if _format == 11:
+        return MakeChunk(
+            CHUNK_TYPES[_format]["U_COMMENT"], 
+            BuildData(CHUNK_FORMATS["U_LABEL"], info)
+            )
+    else:
+        raise Exception("Not supported")
 
 
-def MakeCommentChunk(RVA, comment):
-    return MakeChunk(CHUNK_TYPES["U_COMMENT"], MakeRVAInfo(RVA, comment))
+def MakeLabelChunk(info, _format):
+    if _format == 11:
+        return MakeChunk(
+            CHUNK_TYPES[_format]["U_LABEL"], 
+            BuildData(CHUNK_FORMATS["U_LABEL"], info)
+            )
+            
+    else:
+        raise Exception("Not supported")
 
+def ExpandChunk(chunk, _format):
+    """Extract information from the chunk data"""
 
-def MakeLabelChunk(RVA, comment):
-    return MakeChunk(CHUNK_TYPES["U_LABEL"], MakeRVAInfo(RVA, comment))
-
-# TODO: rename ReadInfo
-#
-def ReadInfo(chunk):
     ct, cd = chunk
-    if ct not in CHUNK_TYPES:
+    if ct not in CHUNK_TYPES[_format]:
         return cd
 
-    cf = CHUNK_FORMATS[CHUNK_TYPES[ct]]
+    cf = CHUNK_FORMATS[CHUNK_TYPES[_format][ct]]
     if cf == F_STRING:
         return cd
     elif cf == F_DDSTRING:
@@ -227,7 +274,6 @@ def ReadInfo(chunk):
     elif cf == F_VERSION:
         return struct.unpack("<4I", cd)
     elif cf == F_DWORD:
-        print len(cd),
         return struct.unpack("<I", cd)
     elif cf == F_DD2:
         return struct.unpack("<2I", cd)
@@ -236,15 +282,15 @@ def ReadInfo(chunk):
     else:
         return cd
 
-# TODO: rename Render
-#
-def RenderInfo(chunk):
+def PrintChunk(chunk, _format):
+    """Pretty print chunk data after expansion"""
+
     ct, cd = chunk
-    info = ReadInfo(chunk)
-    if ct not in CHUNK_TYPES:
+    info = ExpandChunk(chunk, _format)
+    if ct not in CHUNK_TYPES[_format]:
         return elbinstr(info)
 
-    cf = CHUNK_FORMATS[CHUNK_TYPES[ct]]
+    cf = CHUNK_FORMATS[CHUNK_TYPES[_format][ct]]
 
     if cf == F_STRING:
         return info.rstrip("\x00")
@@ -283,45 +329,48 @@ def RenderInfo(chunk):
 
 class Udd(object):
 
-    def __init__(self, filename=None):
+    def __init__(self, filename=None, _format=None):
+
         self.__data = {}
         self.__chunks = []
-        self.__format = None
         self.__warnings = []
+
+        self.__format = 11 if _format is None else _format
 
         if filename is not None:
             self.Load(filename)
 
         return
 
+
     def Load(self, filename):
         try:
             f = open(filename, "rb")
             ct, cd =  ReadNextChunk(f)
 
-            if not (ct == CHUNK_TYPES["HEADER"] and
-                cd in [
-                    "Module info file v1.1\x00",
-                    "Module info file v2.0\x00"]):
+            if not (ct == HDR_STRING and
+                cd in (e[1] for e in udd_formats)):
                 raise Exception("Invalid HEADER chunk")
+
+            self.__format = UDD_FORMATS[cd]
+
             self.__chunks.append([ct, cd])
-            self.__format = 1 if cd == "Module info file v1.1\x00" else 2
             while (True):
                 ct, cd = ReadNextChunk(f)
-                if ct not in CHUNK_TYPES:
+
+                if ct not in CHUNK_TYPES[self.__format]:
                     self.__warnings.append(
-                        "Warning (offset %08X) unknown chunk type: '%s' %s" % (f.tell(), ct.lstrip("\n"), elbinstr(cd))
+                        "Warning (offset %08X) unknown chunk type: '%s' %s" %
+                            (f.tell(), ct.lstrip("\n"), elbinstr(cd))
                         )
 
                 self.__chunks.append([ct, cd])
-                if (ct, cd) == (CHUNK_TYPES["FOOTER"] , ""):
+                if (ct, cd) == (CHUNK_TYPES[self.__format]["FOOTER"] , ""):
                     break
 
         finally:
             f.close()
 
-        for w in self.__warnings:
-            print w
         return
 
 
@@ -348,8 +397,9 @@ class Udd(object):
             self.__chunks.insert(-1, chunk)
         return
 
+
     def AppendChunk(self, chunk):
-        """blindly the chunk"""
+        """blindly append the chunk"""
         self.__chunks.append(chunk)
         return
 
@@ -387,24 +437,15 @@ class Udd(object):
         return found if len(found) > 0 else None
 
 
-    def FindByRVA(self, RVA):
-        found = self.FindByTypes(RVAINFO_TYPES)
-
-        result = []
-        for i in found:
-            foundRVA, data = ReadRVAInfo(self.__chunks[i][1])
-            if foundRVA == RVA:
-                type = CHUNK_TYPES[self.__chunks[i][0]]
-                result += type, data
-
-        return result
-
-
-    def Render(self):
+    def __repr__(self):
+        r = []
         for i in self.__chunks:
-            if i[0] in CHUNK_TYPES:
-                print "%s:" % CHUNK_TYPES[i[0]],
+            if i[0] in CHUNK_TYPES[self.__format]:
+                s = "%s:" % CHUNK_TYPES[self.__format][i[0]]
             else:
-                print "UNK[%s] :" % i[0][1:4],
-            print RenderInfo(i)
-        return
+                s = "UNK[%s] :" % i[0][1:4],
+            s += PrintChunk(i, self.__format)
+            r += [s]
+
+        return "\n".join(r)
+
