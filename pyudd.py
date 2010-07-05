@@ -22,7 +22,9 @@ F_DD2STRING = 6
 F_BIN = 8
 F_NAME = 9
 
-chunk_types = [
+# TODO: support both formats
+
+chunk_types1 = [
     ("HEADER",      "Mod\x00", F_STRING),
     ("FOOTER",      "\nEnd", F_EMPTY),
     ("FILENAME",    "\nFil", F_STRING),
@@ -77,24 +79,34 @@ chunk_types = [
     ("CFA",         "\nCfa", F_DD2), #?
     ("CFM",         "\nCfm", F_DD2STRING), #?
     ("CFI",         "\nCfi", F_DD2), #?
+    ]
+
+chunk_types = [
+    ("HEADER",      "Mod\x00", F_STRING),
+    ("FOOTER",      "\nEnd", F_EMPTY),
+    ("FILENAME",    "\nFil", F_STRING),
+
     ("JDT",         "\nJdt", F_BIN), #?
-    ("SWI",         "\nSwi", F_BIN), #?
     ("PRC",         "\nPrc", F_BIN), #?
+    ("SWI",         "\nSwi", F_BIN), #?
 
      #OllyDbg 2
     ("FCR",         "\nFcr", F_BIN), #?
     ("NAME",        "\nNam", F_NAME), #?
-    ("DATA",        "\nDat", F_BIN), #?
+    ("DATA",        "\nDat", F_NAME), #?
     ("CBR",         "\nCbr", F_BIN), #?
     ("LBR",         "\nLbr", F_BIN), #?
     ("ANA",         "\nAna", F_BIN), #?
     ("CAS",         "\nCas", F_BIN), #?
-    ("MBA",         "\nMba", F_BIN), #?
+    ("MBA",         "\nMba", F_DDSTRING), #?
     ("PRD",         "\nPrd", F_BIN), #?
     ("SAV",         "\nSav", F_BIN), #?
     ("RTC",         "\nRtc", F_BIN), #?
     ("RTP",         "\nRtp", F_BIN), #?
-    ("LSA",         "\nLsa", F_BIN), #?
+    ("LSA",         "\nLsa", F_NAME), #?
+    ("IN3",         "\nIn3", F_BIN), #?
+    ("BPM",         "\nBpm", F_BIN), #?
+    ("BPH",         "\nBph", F_BIN), #?
     ]
 
 CHUNK_TYPES = dict(
@@ -107,7 +119,7 @@ CHUNK_FORMATS = dict(
     [(e[0], e[2]) for e in chunk_types]
     )
 
-RVAINFO_TYPES = [CHUNK_TYPES[e] for e in "U_LABEL", "U_COMMENT"]
+#RVAINFO_TYPES = [CHUNK_TYPES[e] for e in "U_LABEL", "U_COMMENT"]
 
 def binstr(s):
     """binary rendering"""
@@ -160,22 +172,63 @@ def MakeLabelChunk(RVA, comment):
 #
 def ReadInfo(chunk):
     ct, cd = chunk
+    if ct not in CHUNK_TYPES:
+        return cd
+
     cf = CHUNK_FORMATS[CHUNK_TYPES[ct]]
     if cf == F_STRING:
-        return cd.rstrip("\x00")
+        return cd
     elif cf == F_DDSTRING:
-        return struct.unpack("<I", cd[:4])[0], cd[4:].rstrip("\x00")
+        return [struct.unpack("<I", cd[:4])[0], cd[4:]]
+
     elif cf == F_NAME:
-        return struct.unpack("<I", cd[:4])[0], cd[4], cd[5:].rstrip("\x00")
+        #name can be null, no 00 in that case
+        #if lptype is not present then no type
+        RVA, buffer = cd[:4], cd[4:]
+        RVA = struct.unpack("<I", RVA)[0]
+        buffer = buffer.rstrip("\x00")
+
+        result = {"RVA": RVA, "cat": buffer[0]}
+
+        buffer = buffer[1:]
+
+        for i, c in enumerate(buffer):
+            if ord(c) >= 0x80:
+                found = i
+                break
+        else:
+            name = buffer
+            if len(buffer):
+                result["name"] = buffer
+            return result
+
+        name, lptype, _type = buffer[:found], buffer[found], buffer[found + 1:]
+
+        # should be in rendering ?
+        #
+        name = name.rstrip("\x00")
+        if len(name):
+            result["name"] = name
+
+        # should be in rendering
+        #
+        result["lptype"] = "*" if lptype == "\xa0" else "%i" % ord(lptype)
+
+        result["type"] = _type
+
+        return result
+
+
     elif cf == F_DD2STRING:
         return list(struct.unpack("<2I", cd[:8])) + [cd[8:].rstrip("\x00")]
+
     elif cf == F_EMPTY:
         return ""
     elif cf == F_VERSION:
         return struct.unpack("<4I", cd)
     elif cf == F_DWORD:
         print len(cd),
-        return struct.unpack("<I", cd)[0]
+        return struct.unpack("<I", cd)
     elif cf == F_DD2:
         return struct.unpack("<2I", cd)
     elif cf == F_BIN:
@@ -188,23 +241,42 @@ def ReadInfo(chunk):
 def RenderInfo(chunk):
     ct, cd = chunk
     info = ReadInfo(chunk)
+    if ct not in CHUNK_TYPES:
+        return elbinstr(info)
+
     cf = CHUNK_FORMATS[CHUNK_TYPES[ct]]
+
     if cf == F_STRING:
         return info.rstrip("\x00")
+
     elif cf == F_DDSTRING:
-        return "%08X: %s" % info
+        return "%08X: %s" % (info[0], info[1].rstrip("\x00"))
+
     elif cf == F_NAME:
-        return "%08X: %s %s" % info
+        result = ["%(RVA)08X: cat:%(cat)s" % info]
+
+        if "name" in info:
+            result += ["name:%(name)s" % info]
+        if "type" in info:
+            result += ["type:%(lptype)s %(type)s" % info]
+
+        return " ".join(result)
+
     elif cf == F_DD2STRING:
-        return "%08X %08X %s" % (tuple(info))
+        return "%08X %08X %s" % tuple(info)
+
     elif cf == F_EMPTY:
         return ""
+
     elif cf == F_VERSION:
         return "%i.%i.%i.%i" % info
+
     elif cf == F_DWORD:
         return "%08X" % info
+
     elif cf == F_DD2:
         return "%08X %08X" % info
+
     elif cf == F_BIN:
         return elbinstr(info)
     return cd
@@ -215,8 +287,11 @@ class Udd(object):
         self.__data = {}
         self.__chunks = []
         self.__format = None
+        self.__warnings = []
+
         if filename is not None:
             self.Load(filename)
+
         return
 
     def Load(self, filename):
@@ -234,7 +309,9 @@ class Udd(object):
             while (True):
                 ct, cd = ReadNextChunk(f)
                 if ct not in CHUNK_TYPES:
-                    raise Exception("Unknown chunk name: %s" % ct)
+                    self.__warnings.append(
+                        "Warning (offset %08X) unknown chunk type: '%s' %s" % (f.tell(), ct.lstrip("\n"), elbinstr(cd))
+                        )
 
                 self.__chunks.append([ct, cd])
                 if (ct, cd) == (CHUNK_TYPES["FOOTER"] , ""):
@@ -242,6 +319,9 @@ class Udd(object):
 
         finally:
             f.close()
+
+        for w in self.__warnings:
+            print w
         return
 
 
@@ -322,6 +402,9 @@ class Udd(object):
 
     def Render(self):
         for i in self.__chunks:
-            print "%s:" % CHUNK_TYPES[i[0]],
+            if i[0] in CHUNK_TYPES:
+                print "%s:" % CHUNK_TYPES[i[0]],
+            else:
+                print "UNK[%s] :" % i[0][1:4],
             print RenderInfo(i)
         return
