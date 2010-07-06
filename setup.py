@@ -12,6 +12,7 @@ setup(
     author_email=pyudd.__contact__,
     url='http://code.google.com/p/pyudd',
     py_modules=['pyudd', 'uddtool'],
+    long_description = "\n".join(pyudd.__doc__.split('\n')),
     classifiers=[
         "Programming Language :: Python",
         "Development Status :: 4 - Beta",
