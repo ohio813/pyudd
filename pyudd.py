@@ -3,7 +3,7 @@
 
 """PyUdd, a python module for OllyDbg .UDD files
 
-Ange Albertini 2010 Public domain
+Ange Albertini 2010, Public domain
 """
 
 __author__ = 'Ange Albertini'
@@ -13,218 +13,228 @@ __version__ = '0.1 r%d' % int(__revision__[11:-2])
 
 import struct
 
-format_ids = [
-    "STRING",
-    "DDSTRING",
-    "MRUSTRING",
-    "EMPTY",
-    "VERSION",
-    "DWORD",
-    "DD2",
-    "DD2STRING",
-    "BIN",
-    "NAME",
-    "CRC2",
-    ]
+HDR_STRING = "Mod\x00"
+FTR_STRING = "\nEnd"
 
-F_ = dict([(e, i) for i, e in enumerate(format_ids)])
-
+#TODO: find standard notation to keep it inside init_mappings
 udd_formats = [
     (11, "Module info file v1.1\x00"),
     (20, "Module info file v2.0\x00"),
     ]
 
-UDD_FORMATS = dict(
-    [(e[1], e[0]) for e in udd_formats] +
-    udd_formats)
+def init_mappings():
+    """initialize constants' mappings"""
+    format_ids = [
+        "STRING",
+        "DDSTRING",
+        "MRUSTRING",
+        "EMPTY",
+        "VERSION",
+        "DWORD",
+        "DD2",
+        "DD2STRING",
+        "BIN",
+        "NAME",
+        "CRC2",
+        ]
 
-HDR_STRING = "Mod\x00"
+    F_ = dict([(e, i) for i, e in enumerate(format_ids)])
 
-#OllyDbg 1.1
-chunk_types11 = [
-    ("Header", HDR_STRING, F_["STRING"]),
-    ("Footer", "\nEnd", F_["EMPTY"]),
-    ("Filename", "\nFil", F_["STRING"]),
-    ("Version", "\nVer", F_["VERSION"]),
-    ("Size", "\nSiz", F_["DWORD"]),
-    ("Timestamp", "\nTst", F_["DD2"]),
-    ("CRC", "\nCcr", F_["DWORD"]),
-    ("Patch", "\nPat", F_["BIN"]),
-    ("Bpc", "\nBpc", F_["BIN"]),
-    ("Bpt", "\nBpt", F_["BIN"]),
-    ("HwBP", "\nHbr", F_["BIN"]),
-    ("Save", "\nSva", F_["BIN"]), # sometimes 4, sometimes 5 ?
-    ("AnalyseHint", "\nAht", F_["BIN"]),
+    udd_formats = [
+        (11, "Module info file v1.1\x00"),
+        (20, "Module info file v2.0\x00"),
+        ]
 
-    ("CMD_PLUGINS", "\nUs0", F_["DDSTRING"]), # multiline, needs escaping
-    ("U_LABEL", "\nUs1", F_["DDSTRING"]),
-    ("A_LABEL", "\nUs4", F_["DDSTRING"]),
-    ("U_COMMENT", "\nUs6", F_["DDSTRING"]),
-    ("BPCOND", "\nUs8", F_["DDSTRING"]),
-    ("ApiArg", "\nUs9", F_["DDSTRING"]),
-    ("USERLABEL", "\nUs1", F_["DDSTRING"]),
-    ("Watch", "\nUsA", F_["DDSTRING"]),
+    Udd_Formats = dict(
+        [(e[1], e[0]) for e in udd_formats] +
+        udd_formats)
 
-    ("US2", "\nUs2", F_["BIN"]),
-    ("US3", "\nUs3", F_["BIN"]),
-    ("_CONST", "\nUs5", F_["BIN"]),
-    ("A_COMMENT", "\nUs7", F_["BIN"]),
-    ("FIND?", "\nUsC", F_["BIN"]),
-    ("SOURCE?", "\nUsI", F_["BIN"]),
+    #OllyDbg 1.1
+    chunk_types11 = [
+        ("Header", HDR_STRING, F_["STRING"]),
+        ("Footer", FTR_STRING, F_["EMPTY"]),
+        ("Filename", "\nFil", F_["STRING"]),
+        ("Version", "\nVer", F_["VERSION"]),
+        ("Size", "\nSiz", F_["DWORD"]),
+        ("Timestamp", "\nTst", F_["DD2"]),
+        ("CRC", "\nCcr", F_["DWORD"]),
+        ("Patch", "\nPat", F_["BIN"]),
+        ("Bpc", "\nBpc", F_["BIN"]),
+        ("Bpt", "\nBpt", F_["BIN"]),
+        ("HwBP", "\nHbr", F_["BIN"]),
+        ("Save", "\nSva", F_["BIN"]), # sometimes 4, sometimes 5 ?
+        ("AnalyseHint", "\nAht", F_["BIN"]),
 
+        ("CMD_PLUGINS", "\nUs0", F_["DDSTRING"]), # multiline, needs escaping
+        ("U_LABEL", "\nUs1", F_["DDSTRING"]),
+        ("A_LABEL", "\nUs4", F_["DDSTRING"]),
+        ("U_COMMENT", "\nUs6", F_["DDSTRING"]),
+        ("BPCOND", "\nUs8", F_["DDSTRING"]),
+        ("ApiArg", "\nUs9", F_["DDSTRING"]),
+        ("USERLABEL", "\nUs1", F_["DDSTRING"]),
+        ("Watch", "\nUsA", F_["DDSTRING"]),
 
-    ("MRU_Inspect","\nUs@", F_["MRUSTRING"]),
-    ("MRU_Asm", "\nUsB", F_["MRUSTRING"]),
-    ("MRU_Goto", "\nUsK", F_["MRUSTRING"]), #?
-    ("MRU_Explanation", "\nUs|", F_["MRUSTRING"]), # logging bp explanation
-    ("MRU_Expression", "\nUs{", F_["MRUSTRING"]), # logging bp expression
-    ("MRU_Watch", "\nUsH", F_["MRUSTRING"]),
-    ("MRU_Label", "\nUsq", F_["MRUSTRING"]), #?
-    ("MRU_Comment", "\nUsv", F_["MRUSTRING"]), #?
-    ("MRU_Condition", "\nUsx", F_["MRUSTRING"]), #?
-
-    ("MRU_CMDLine", "\nCml", F_["STRING"]), #?
+        ("US2", "\nUs2", F_["BIN"]),
+        ("US3", "\nUs3", F_["BIN"]),
+        ("_CONST", "\nUs5", F_["BIN"]),
+        ("A_COMMENT", "\nUs7", F_["BIN"]),
+        ("FIND?", "\nUsC", F_["BIN"]),
+        ("SOURCE?", "\nUsI", F_["BIN"]),
 
 
-    ("LogExpression", "\nUs;", F_["DDSTRING"]), # logging bp expression
-    ("ANALY_COMM", "\nUs:", F_["DDSTRING"]), #
-    ("US?", "\nUs?", F_["DDSTRING"]), #?
-    ("TracCond", "\nUsM", F_["DDSTRING"]), # tracing condition
-    ("LogExplanation", "\nUs<", F_["DDSTRING"]), # logging bp explanation
-    ("AssumedArgs", "\nUs=", F_["DDSTRING"]), # Assumed arguments
-    ("CFA", "\nCfa", F_["DD2"]), #?
-    ("CFM", "\nCfm", F_["DD2STRING"]), #?
-    ("CFI", "\nCfi", F_["DD2"]), #?
+        ("MRU_Inspect","\nUs@", F_["MRUSTRING"]),
+        ("MRU_Asm", "\nUsB", F_["MRUSTRING"]),
+        ("MRU_Goto", "\nUsK", F_["MRUSTRING"]), #?
+        ("MRU_Explanation", "\nUs|", F_["MRUSTRING"]), # logging bp explanation
+        ("MRU_Expression", "\nUs{", F_["MRUSTRING"]), # logging bp expression
+        ("MRU_Watch", "\nUsH", F_["MRUSTRING"]),
+        ("MRU_Label", "\nUsq", F_["MRUSTRING"]), #?
+        ("MRU_Comment", "\nUsv", F_["MRUSTRING"]), #?
+        ("MRU_Condition", "\nUsx", F_["MRUSTRING"]), #?
 
-    ("US>", "\nUs>", F_["BIN"]), #?
-    ("ANC", "\nAnc", F_["BIN"]), #?
-    ("JDT", "\nJdt", F_["BIN"]), #?
-    ("PRC", "\nPrc", F_["BIN"]), #?
-    ("SWI", "\nSwi", F_["BIN"]), #?
-    ]
+        ("MRU_CMDLine", "\nCml", F_["STRING"]), #?
 
-#OllyDbg 2
-chunk_types20 = [
-    ("Header", HDR_STRING, F_["STRING"]),
-    ("Footer", "\nEnd", F_["EMPTY"]),
-    ("Filename", "\nFil", F_["STRING"]),
 
-    ("Infos", "\nFcr", F_["CRC2"]), #?
-    ("Name", "\nNam", F_["NAME"]), #?
-    ("Data", "\nDat", F_["NAME"]), #?
-    ("MemMap", "\nMba", F_["DDSTRING"]), #?
+        ("LogExpression", "\nUs;", F_["DDSTRING"]), # logging bp expression
+        ("ANALY_COMM", "\nUs:", F_["DDSTRING"]), #
+        ("US?", "\nUs?", F_["DDSTRING"]), #?
+        ("TracCond", "\nUsM", F_["DDSTRING"]), # tracing condition
+        ("LogExplanation", "\nUs<", F_["DDSTRING"]), # logging bp explanation
+        ("AssumedArgs", "\nUs=", F_["DDSTRING"]), # Assumed arguments
+        ("CFA", "\nCfa", F_["DD2"]), #?
+        ("CFM", "\nCfm", F_["DD2STRING"]), #?
+        ("CFI", "\nCfi", F_["DD2"]), #?
 
-    ("LSA", "\nLsa", F_["NAME"]), # MRU entries
+        ("US>", "\nUs>", F_["BIN"]), #?
+        ("ANC", "\nAnc", F_["BIN"]), #?
+        ("JDT", "\nJdt", F_["BIN"]), #?
+        ("PRC", "\nPrc", F_["BIN"]), #?
+        ("SWI", "\nSwi", F_["BIN"]), #?
+        ]
 
-    ("JDT", "\nJdt", F_["BIN"]), #?
-    ("PRC", "\nPrc", F_["BIN"]), #?
-    ("SWI", "\nSwi", F_["BIN"]), #?
+    #OllyDbg 2
+    chunk_types20 = [
+        ("Header", HDR_STRING, F_["STRING"]),
+        ("Footer", FTR_STRING, F_["EMPTY"]),
+        ("Filename", "\nFil", F_["STRING"]),
 
-    ("CBR", "\nCbr", F_["BIN"]), #?
-    ("LBR", "\nLbr", F_["BIN"]), #?
-    ("ANA", "\nAna", F_["BIN"]), #?
-    ("CAS", "\nCas", F_["BIN"]), #?
-    ("PRD", "\nPrd", F_["BIN"]), #?
-    ("Save", "\nSav", F_["BIN"]), #?
-    ("RTC", "\nRtc", F_["BIN"]), #?
-    ("RTP", "\nRtp", F_["BIN"]), #?
-    ("Int3", "\nIn3", F_["BIN"]), #?
-    ("MemBP", "\nBpm", F_["BIN"]), #?
-    ("HWBP", "\nBph", F_["BIN"]), #?
-    ]
+        ("Infos", "\nFcr", F_["CRC2"]), #?
+        ("Name", "\nNam", F_["NAME"]), #?
+        ("Data", "\nDat", F_["NAME"]), #?
+        ("MemMap", "\nMba", F_["DDSTRING"]), #?
 
-CHUNK_TYPES11 = dict(
-    [(e[1], e[0]) for e in chunk_types11] +
-    [(e[0], e[1]) for e in chunk_types11]
-    )
+        ("LSA", "\nLsa", F_["NAME"]), # MRU entries
 
-CHUNK_TYPES20 = dict(
-    [(e[1], e[0]) for e in chunk_types20] +
-    [(e[0], e[1]) for e in chunk_types20]
-    )
+        ("JDT", "\nJdt", F_["BIN"]), #?
+        ("PRC", "\nPrc", F_["BIN"]), #?
+        ("SWI", "\nSwi", F_["BIN"]), #?
 
-CHUNK_TYPES = {
-    11: CHUNK_TYPES11,
-    20: CHUNK_TYPES20
-    }
+        ("CBR", "\nCbr", F_["BIN"]), #?
+        ("LBR", "\nLbr", F_["BIN"]), #?
+        ("ANA", "\nAna", F_["BIN"]), #?
+        ("CAS", "\nCas", F_["BIN"]), #?
+        ("PRD", "\nPrd", F_["BIN"]), #?
+        ("Save", "\nSav", F_["BIN"]), #?
+        ("RTC", "\nRtc", F_["BIN"]), #?
+        ("RTP", "\nRtp", F_["BIN"]), #?
+        ("Int3", "\nIn3", F_["BIN"]), #?
+        ("MemBP", "\nBpm", F_["BIN"]), #?
+        ("HWBP", "\nBph", F_["BIN"]), #?
+        ]
 
-# no overlapping of formats yet so they're still merged
-#
-CHUNK_FORMATS = dict(
-    [(e[2], e[0]) for e in chunk_types11] +
-    [(e[0], e[2]) for e in chunk_types11] +
+    Chunk_Types11 = dict(
+        [(e[1], e[0]) for e in chunk_types11] +
+        [(e[0], e[1]) for e in chunk_types11]
+        )
 
-    [(e[2], e[0]) for e in chunk_types20] +
-    [(e[0], e[2]) for e in chunk_types20]
-    )
+    Chunk_Types20 = dict(
+        [(e[1], e[0]) for e in chunk_types20] +
+        [(e[0], e[1]) for e in chunk_types20]
+        )
 
-olly2cats = [
-    # used in DATA and NAME
+    Chunk_Types = {
+        11: Chunk_Types11,
+        20: Chunk_Types20
+        }
+
+    # no overlapping of formats yet so they're still merged
     #
-    ('!', "UserLabel"),
-    ('0', "UserComment"),
-    ('1', "Import"),
-    ('2', "APIArg"),
-    ('3', "APICall"),
-    ('4', "Member"),
-    ('6', "Unk6"),
-    ('*', "Struct"),
+    Chunk_Formats = dict(
+        [(e[2], e[0]) for e in chunk_types11] +
+        [(e[0], e[2]) for e in chunk_types11] +
 
-    # only used in LSA ?
-    #
-    ('`', 'mru_label'),
-    ('a', 'mru_asm'),
-    ('c', 'mru_comment'),
-    ('d', 'watch'),
-    ('e', 'mru_goto'),
+        [(e[2], e[0]) for e in chunk_types20] +
+        [(e[0], e[2]) for e in chunk_types20]
+        )
 
-    ('p', 'trace_condition1'),
-    ('q', 'trace_condition2'),
-    ('r', 'trace_condition3'),
-    ('s', 'trace_condition4'),
-    ('t', 'trace_command1'),
-    ('u', 'trace_command2'),
+    olly2cats = [
+        # used in DATA and NAME
+        #
+        ('!', "UserLabel"),
+        ('0', "UserComment"),
+        ('1', "Import"),
+        ('2', "APIArg"),
+        ('3', "APICall"),
+        ('4', "Member"),
+        ('6', "Unk6"),
+        ('*', "Struct"),
 
-    ('v', 'protocol_start'),
-    ('w', 'protocol_end'),
+        # only used in LSA ?
+        #
+        ('`', 'mru_label'),
+        ('a', 'mru_asm'),
+        ('c', 'mru_comment'),
+        ('d', 'watch'),
+        ('e', 'mru_goto'),
 
-    ('Q', 'log_explanation'),
-    ('R', 'log_condition'),
-    ('S', 'log_expression'),
+        ('p', 'trace_condition1'),
+        ('q', 'trace_condition2'),
+        ('r', 'trace_condition3'),
+        ('s', 'trace_condition4'),
+        ('t', 'trace_command1'),
+        ('u', 'trace_command2'),
 
-    ('U', 'mem_explanation'),
-    ('V', 'mem_condition'),
-    ('W', 'mem_expression'),
+        ('v', 'protocol_start'),
+        ('w', 'protocol_end'),
 
-    ('Y', 'hbplog_explanation'),
-    ('Z', 'hbplog_condition'),
-    ('[', 'hbplog_expression'),
+        ('Q', 'log_explanation'),
+        ('R', 'log_condition'),
+        ('S', 'log_expression'),
 
-    ]
+        ('U', 'mem_explanation'),
+        ('V', 'mem_condition'),
+        ('W', 'mem_expression'),
 
-OLLY2CATS = dict(
-    [(e[1], e[0]) for e in olly2cats] +
-    olly2cats)
+        ('Y', 'hbplog_explanation'),
+        ('Z', 'hbplog_condition'),
+        ('[', 'hbplog_expression'),
 
-del(e, i)
+        ]
 
+    Olly2Cats = dict(
+        [(e[1], e[0]) for e in olly2cats] +
+        olly2cats)
+
+    return Udd_Formats, F_, Chunk_Types, Chunk_Formats, Olly2Cats
+
+UDD_FORMATS, F_, CHUNK_TYPES, CHUNK_FORMATS, OLLY2CATS = init_mappings()
 
-def binstr(s):
-    """binary rendering"""
-    return " ".join(["%02X" % ord(c) for c in s])
+def binstr(data):
+    """return a stream as hex sequence"""
+    return " ".join(["%02X" % ord(c) for c in data])
 
-def elbinstr(s):
-    """ellipsed binary string display"""
-    if len(s) < 10:
-        return binstr(s)
-    return "(%i) %s ... %s" % (len(s), binstr(s[:10]), binstr(s[-10:]))
+def elbinstr(data):
+    """return a stream as hex sequence, ellipsed if too long"""
+    if len(data) < 10:
+        return binstr(data)
+    return "(%i) %s ... %s" % (len(data), binstr(data[:10]), binstr(data[-10:]))
 
 class Error(Exception):
     """custom error class"""
     pass
 
 
-def ReadNextChunk(f):
+def read_next_chunk(f):
     """read next Udd chunk"""
     ct = f.read(4)
     size = struct.unpack("<I", f.read(4))[0]
@@ -233,7 +243,7 @@ def ReadNextChunk(f):
     return ct, cd
 
 
-def WriteChunk(f, ct, cd):
+def write_chunk(f, ct, cd):
     """write a chunk"""
     f.write(ct)
     f.write(struct.pack("<I", len(cd)))
@@ -241,7 +251,7 @@ def WriteChunk(f, ct, cd):
     return
 
 
-def MakeChunk(ct, cd):
+def make_chunk(ct, cd):
     """put together chunk types and data with a few checks"""
     if len(ct) != 4:
         raise Error("invalid chunk name length")
@@ -251,47 +261,48 @@ def MakeChunk(ct, cd):
     return [ct, cd]
 
 
-def BuildData(_format, info):
+def build_data(format_, info):
     """generate a chunk data depending on the format"""
-    if _format == F_["DWORD"]:
+    if format_ == F_["DWORD"]:
         return "%s" % (struct.pack("<I", info["dword"]))
-    if _format in [F_["DDSTRING"], F_["MRUSTRING"]]:
+    if format_ in [F_["DDSTRING"], F_["MRUSTRING"]]:
         return "%s%s\x00" % (struct.pack("<I", info["dword"]), info["text"])
     else:
         raise Error("format not supported for building")
 
 
-# TODO: merge those 3 into a real MakeChunk or something - support format 2
+#TODO: merge those into a real make_chunk or something - support format 2
 #
-def MakeCommentChunk(info, _format):
+def make_comment_chunk(info, format_):
     """generate a user comment chunk depending on the format"""
-    if _format == 11:
-        return MakeChunk(
-            CHUNK_TYPES[_format]["U_COMMENT"],
-            BuildData(CHUNK_FORMATS["U_LABEL"], info)
+    if format_ == 11:
+        return make_chunk(
+            CHUNK_TYPES[format_]["U_COMMENT"],
+            build_data(CHUNK_FORMATS["U_LABEL"], info)
             )
     else:
         raise Error("Not supported")
 
-def MakeLabelChunk(info, _format):
+def make_label_chunk(info, format_):
     """generate a user label chunk depending on the format"""
-    if _format == 11:
-        return MakeChunk(
-            CHUNK_TYPES[_format]["U_LABEL"],
-            BuildData(CHUNK_FORMATS["U_LABEL"], info)
+    if format_ == 11:
+        return make_chunk(
+            CHUNK_TYPES[format_]["U_LABEL"],
+            build_data(CHUNK_FORMATS["U_LABEL"], info)
             )
 
     else:
         raise Error("Not supported")
 
-def ExpandChunk(chunk, _format):
+
+def expand_chunk(chunk, format_):
     """Extract information from the chunk data"""
 
     ct, cd = chunk
-    if ct not in CHUNK_TYPES[_format]:
+    if ct not in CHUNK_TYPES[format_]:
         return cd
 
-    cf = CHUNK_FORMATS[CHUNK_TYPES[_format][ct]]
+    cf = CHUNK_FORMATS[CHUNK_TYPES[format_][ct]]
     if cf == F_["STRING"]:
         result = {"string": cd}
 
@@ -305,27 +316,27 @@ def ExpandChunk(chunk, _format):
         #name can be null, no 00 in that case
         #if lptype is not present then no type
         RVA = cd[:4]
-        _buffer = cd[4:]
+        buffer_ = cd[4:]
         RVA = struct.unpack("<I", RVA)[0]
-        _buffer = _buffer.rstrip("\x00")
+        buffer_ = buffer_.rstrip("\x00")
 
-        result = {"RVA": RVA, "category": _buffer[0]}
+        result = {"RVA": RVA, "category": buffer_[0]}
 
-        _buffer = _buffer[1:]
+        buffer_ = buffer_[1:]
 
-        for i, c in enumerate(_buffer):
+        for i, c in enumerate(buffer_):
             if ord(c) >= 0x80:
                 found = i
                 break
         else:
-            name = _buffer
-            if _buffer:
-                result["name"] = _buffer
+            name = buffer_
+            if buffer_:
+                result["name"] = buffer_
             return result
 
-        name = _buffer[:found]
-        lptype = _buffer[found]
-        _type = _buffer[found + 1:]
+        name = buffer_[:found]
+        lptype = buffer_[found]
+        type_ = buffer_[found + 1:]
 
         # should be in rendering ?
         #
@@ -337,7 +348,7 @@ def ExpandChunk(chunk, _format):
         #
         result["lptype"] = "*" if lptype == "\xa0" else "%i" % ord(lptype)
 
-        result["type"] = _type
+        result["type_"] = type_
 
     elif cf == F_["DD2STRING"]:
         result = list(struct.unpack("<2I", cd[:8])) + [cd[8:].rstrip("\x00")]
@@ -363,15 +374,15 @@ def ExpandChunk(chunk, _format):
     return result
 
 
-def PrintChunk(chunk, _format):
+def print_chunk(chunk, format_):
     """Pretty print chunk data after expansion"""
 
     ct, cd = chunk
-    info = ExpandChunk(chunk, _format)
-    if ct not in CHUNK_TYPES[_format]:
+    info = expand_chunk(chunk, format_)
+    if ct not in CHUNK_TYPES[format_]:
         return elbinstr(info)
 
-    cf = CHUNK_FORMATS[CHUNK_TYPES[_format][ct]]
+    cf = CHUNK_FORMATS[CHUNK_TYPES[format_][ct]]
 
     if cf == F_["STRING"]:
         result = info["string"].rstrip("\x00")
@@ -389,8 +400,8 @@ def PrintChunk(chunk, _format):
 
         if "name" in info:
             result += ["%(name)s" % info]
-        if "type" in info:
-            result += ["type:%(lptype)s %(type)s" % info]
+        if "type_" in info:
+            result += ["type:%(lptype)s %(type_)s" % info]
 
         result = " ".join(result)
 
@@ -420,24 +431,26 @@ def PrintChunk(chunk, _format):
 
 
 class Udd(object):
+    """OllyDbg UDD file format class"""
 
-    def __init__(self, filename=None, _format=None):
-
+    def __init__(self, filename=None, format_=None):
+        """initialization. load file if given"""
         self.__data = {}
         self.__chunks = []
         self.__warnings = []
 
-        self.__format = 11 if _format is None else _format
+        self.__format = 11 if format_ is None else format_
 
         if filename is not None:
-            self.Load(filename)
+            self.load(filename)
         return
 
 
-    def Load(self, filename):
+    def load(self, filename):
+        """load UDD file from filename"""
         try:
             f = open(filename, "rb")
-            ct, cd =  ReadNextChunk(f)
+            ct, cd =  read_next_chunk(f)
 
             if not (ct == HDR_STRING and
                 cd in (e[1] for e in udd_formats)):
@@ -447,7 +460,7 @@ class Udd(object):
 
             self.__chunks.append([ct, cd])
             while (True):
-                ct, cd = ReadNextChunk(f)
+                ct, cd = read_next_chunk(f)
 
                 if ct not in CHUNK_TYPES[self.__format]:
                     self.__warnings.append(
@@ -463,49 +476,55 @@ class Udd(object):
         return
 
 
-    def Save(self, filename):
+    def save(self, filename):
+        """(over)writes UDD file to disk"""
         f = open(filename, "wb")
         for ct, cd in self.__chunks:
-            WriteChunk(f, ct, cd)
+            write_chunk(f, ct, cd)
         f.close()
         return
 
 
-    def SetChunk(self, pos, chunk):
+    def set_chunk(self, pos, chunk):
+        """give new values to a chunk"""
         self.__chunks[pos] = chunk
         return
 
 
-    def GetChunk(self, pos):
+    def get_chunk(self, pos):
+        """return chunk contents"""
         return self.__chunks[pos]
 
 
-    def AddChunk(self, chunk):
-        """appending the chunk before the final End chunk"""
-        if not self.Find(chunk):
+    def add_chunk(self, chunk):
+        """append a chunk before the footer"""
+        if not self.find_chunk(chunk):
             self.__chunks.insert(-1, chunk)
         return
 
 
-    def AppendChunk(self, chunk):
+    def append_chunk(self, chunk):
         """blindly append the chunk"""
         self.__chunks.append(chunk)
         return
 
-    def GetFormat(self):
+    def get_format(self):
+        """return UDD file format"""
         return self.__format
 
 
-    def FindByType(self, type):
+    def find_by_type(self, type_):
+        """return chunk indexes matching the given type"""
         found = []
 
         for i, c in enumerate(self.__chunks):
-            if c[0] == type:
+            if c[0] == type_:
                 found += i
         return found
 
 
-    def FindByTypes(self, types):
+    def find_by_types(self, types):
+        """return chunk indexes matching any of the given types"""
         found = []
 
         for i, c in enumerate(self.__chunks):
@@ -514,7 +533,8 @@ class Udd(object):
         return found
 
 
-    def Find(self, chunk):
+    def find_chunk(self, chunk):
+        """lookup chunk by its type and data"""
         found = []
 
         for i, c in enumerate(self.__chunks):
@@ -524,13 +544,14 @@ class Udd(object):
 
 
     def __repr__(self):
+        """pretty print of a UDD"""
         r = []
         for i in self.__chunks:
             if i[0] in CHUNK_TYPES[self.__format]:
                 s = ["%s:" % CHUNK_TYPES[self.__format][i[0]]]
             else:
                 s = ["UNK[%s]:" % i[0][1:4]]
-            s += [PrintChunk(i, self.__format)]
+            s += [print_chunk(i, self.__format)]
             r += ["".join(s)]
         return "\n".join(r)
 
