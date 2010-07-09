@@ -233,6 +233,24 @@ class Error(Exception):
     """custom error class"""
     pass
 
+def crc32mpeg(buffer_):
+    """computes the CRC32 MPEG CRC of a buffer"""
+    crc = 0xffffffff
+    for c in buffer_:
+        octet = ord(c)
+
+        for i in range(8):
+            topbit = crc & 0x80000000
+            if octet & (0x80 >> i):
+                topbit ^= 0x80000000
+            crc <<= 1
+            if topbit:
+                crc ^= 0x4c11db7
+        crc &= 0xffffffff
+
+    return crc
+
+
 
 def read_next_chunk(f):
     """read next Udd chunk"""
