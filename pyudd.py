@@ -269,6 +269,27 @@ def getcrc(filename):
 
     return crc32mpeg(data)
 
+def getTimestamp(filename):
+    """read LastModified timestamp and return as a binary buffer"""
+    import ctypes
+    mtime = ctypes.c_ulonglong(0)
+
+    h = ctypes.windll.kernel32.CreateFileA(
+        ctypes.c_char_p(filename),
+        0, 3, 0, 3, 0x80, 0)
+    ctypes.windll.kernel32.GetFileTime(h, 0,0, ctypes.pointer(mtime))
+    ctypes.windll.kernel32.CloseHandle(h)
+    return struct.pack("<Q", mtime.value)
+
+def getFileInfo(filename):
+    """return file's timestamp, crc and size"""
+    import os
+    import stat
+    time_ = getTimestamp(filename)
+    crc = getcrc(filename)
+    size = os.stat(filename)[stat.ST_SIZE]
+    return time_, crc, size
+
 
 def read_next_chunk(f):
     """read next Udd chunk"""

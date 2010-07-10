@@ -7,6 +7,7 @@ Ange Albertini 2010, Public domain
 """
 
 import glob
+import struct
 import sys
 
 import pyudd
@@ -56,7 +57,10 @@ def extract_user_data(udd, format_):
     """extract user-entered MRUs from a UDD"""
     results = [",".join(["type", "text"])]
     if format_ == 11:
-        found = udd.find_by_types([pyudd.CHUNK_TYPES[11][i] for i in pyudd.CHUNK_TYPES[11] if i.startswith("MRU_")])
+        found = udd.find_by_types(
+            [pyudd.CHUNK_TYPES[11][i]
+                for i in pyudd.CHUNK_TYPES[11]
+                    if i.startswith("MRU_")])
         for i in found:
             chk = udd.get_chunk(i)
             type_ = pyudd.CHUNK_TYPES[11][chk[0]]
@@ -64,7 +68,9 @@ def extract_user_data(udd, format_):
             results += [",".join([type_, text])]
 
     elif format_ == 20:
-        for i in udd.find_by_types([pyudd.CHUNK_TYPES[20][i] for i in ["Name", "LSA"]]):
+        for i in udd.find_by_types(
+            [pyudd.CHUNK_TYPES[20][i]
+                for i in ["Name", "LSA"]]):
             data = pyudd.expand_chunk(udd.get_chunk(i), format_)
             if data["category"] in  [
                 'd', 'e', 'p', 'q', 'r', 's', 't', 'u',
@@ -145,10 +151,23 @@ def main():
         u = pyudd.Udd()
         u.append_chunk([pyudd.HDR_STRING, pyudd.UDD_FORMATS[format_]])
 
-        #TODO: add size chunk in format 11
         if arglen > 3:
+            filename = sys.argv[3]
+            time_, crc, size = pyudd.getFileInfo(filename)
+
             u.append_chunk(
-                [pyudd.CHUNK_TYPES[format_]["FILENAME"], sys.argv[3]]
+                [pyudd.CHUNK_TYPES[format_]["Filename"], sys.argv[3]]
+                )
+
+            #TODO: QA for format 20
+            u.append_chunk(
+                [pyudd.CHUNK_TYPES[format_]["Size"], struct.pack("<I", size)]
+                )
+            u.append_chunk(
+                [pyudd.CHUNK_TYPES[format_]["Timestamp"], time_]
+                )
+            u.append_chunk(
+                [pyudd.CHUNK_TYPES[format_]["CRC"], struct.pack("<I", crc)]
                 )
 
         u.append_chunk([pyudd.FTR_STRING, ""])
@@ -167,6 +186,17 @@ def main():
             print f
             u = pyudd.Udd(filename=f)
             print u
+
+# old scanning code
+#            chk = u.get_chunk(u.find_by_type(pyudd.CHUNK_TYPES[11]["CRC"])[0])
+#            intCRC = pyudd.expand_chunk(chk,11)["dword"][0]
+#
+#            filename = u.get_chunk(u.find_by_type(pyudd.CHUNK_TYPES[11]["Filename"])[0])[1]
+#            try:
+#                myCRC = pyudd.getcrc(filename.strip('\0'))
+#                print "OK" if myCRC == intCRC else "Error"
+#            except IOError:
+#                pass
 
     elif action == "import":
         #TODO: turn that into a procedure
