@@ -234,7 +234,7 @@ class Error(Exception):
     pass
 
 def crc32mpeg(buffer_):
-    """computes the CRC32 MPEG CRC of a buffer"""
+    """computes the CRC32 MPEG of a buffer"""
     crc = 0xffffffff
     for c in buffer_:
         octet = ord(c)
@@ -250,6 +250,24 @@ def crc32mpeg(buffer_):
 
     return crc
 
+def getcrc(filename):
+    """returns the UDD crc of a file, by its filename"""
+    # probably not always correct
+    import pefile
+    pe = pefile.PE(filename)
+    sec = pe.sections[0]
+    align = pe.OPTIONAL_HEADER.SectionAlignment
+
+    data = sec.get_data(sec.VirtualAddress)
+
+    ActualSize = max(sec.Misc_VirtualSize, sec.SizeOfRawData)
+    data += "\0" * (ActualSize - len(data))
+
+    rem = ActualSize % align
+    if rem:
+        data += "\0" * (align - rem)
+
+    return crc32mpeg(data)
 
 
 def read_next_chunk(f):
@@ -537,7 +555,7 @@ class Udd(object):
 
         for i, c in enumerate(self.__chunks):
             if c[0] == type_:
-                found += i
+                found += [i]
         return found
 
 
