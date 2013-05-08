@@ -3,12 +3,14 @@
 
 """UddTool, a PyUdd-based tool for common operations on OllyDbg UDD files.
 
-Ange Albertini 2010, Public domain
+Ange Albertini 2010-2013, Public domain
 """
 
 import glob
 import struct
 import sys
+import collections
+import csv
 
 import pyudd
 
@@ -40,6 +42,9 @@ actions = [
     )
     ]
 
+class StdoutWriter:
+    def write(self, row):
+        sys.stdout.write(row)
 
 def rtfm():
     """display usage and exit"""
@@ -103,7 +108,7 @@ def export_labcoms(udd):
     #TODO: multi format
     format_ = 11
 
-    d = {}
+    d = collections.OrderedDict()
     for i in labcoms:
         ct, cd = u.get_chunk(i)
 
@@ -117,15 +122,12 @@ def export_labcoms(udd):
             d[RVA][1] = text
 
     # outputting CSV information
-    #
-    csv = [ ",".join(["RVA", "label", "comment"])]
+    csvwriter = csv.writer(StdoutWriter())
+    csvwriter.writerow(["RVA", "label", "comment"])
 
     for i in d:
-        csv += [",".join(["%08x" % i] + d[i])]
+        csvwriter.writerow(["%08X" % i, d[i][0], d[i][1]])
 
-    return "\n".join(csv)
-
-
 def main():
     """parse arguments then call relevant function"""
     arglen = len(sys.argv)
@@ -209,17 +211,17 @@ def main():
         #
         f = open(csvfile, "rt")
         u = pyudd.Udd(uddfile)
+        csvreader = csv.reader(f)
         format_ = u.get_format()
-        for l in f:
 
+        for d in csvreader:
             # skip the header
             #
-            if l.startswith("RVA"):
+            if d[0] == "RVA":
                 continue
 
             # extract information
             #
-            d = l.strip().split(",")
             RVA, label, comment  = int(d[0],16), d[1], d[2]
 
             # save new information
@@ -240,7 +242,7 @@ def main():
         if arglen < 3:
             rtfm()
         uddfile = sys.argv[2]
-        print export_labcoms(uddfile)
+        export_labcoms(uddfile)
 
     elif action == "extract":
         if arglen < 3:
@@ -253,6 +255,6 @@ def main():
 
         extract_user_data(u, u.get_format())
 
-
+
 if __name__ == '__main__':
     main()
